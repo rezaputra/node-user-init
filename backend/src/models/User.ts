@@ -1,11 +1,11 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
-import * as crypto from "crypto";
 import mongoose, { Document, Schema } from "mongoose";
 import { NotFoundError } from "../utils/errors/notFoundError";
 import { ClientError } from "../utils/errors/clientError";
 import config from "../config";
 import Token, { TokenType } from "./Token";
+import { CustomError } from "../utils/errors/customError";
 
 export interface IUser extends Document {
     fullName: string;
@@ -139,18 +139,21 @@ UserSchema.methods.generateRefreshToken = async function () {
 UserSchema.methods.generateResetToken = async function () {
     const user = this;
 
-    const resetTokenValue: string = crypto.randomBytes(20).toString("base64url");
-    const resetTokenSecret: string = crypto.randomBytes(10).toString("hex");
-    const resetToken: string = `${resetTokenValue}+${resetTokenSecret}`;
-
-    const resetTokenHash: string = crypto.createHmac("sha256", resetTokenSecret).update(resetToken).digest("hex");
-
-    const expirationDate: Date = new Date();
-    expirationDate.setDate(expirationDate.getDate() + parseInt(config.jwt.resetExpires as string));
-
-    await Token.create({ userId: user._id, value: resetTokenHash, type: TokenType.RESET, expiresAt: expirationDate });
-
-    return resetToken;
+    const resetToken: string = jwt.sign(
+        {
+            _id: user._id,
+            email: user.email,
+            role: user.role,
+        },
+        config.jwt.refresh as string,
+        {
+            expiresIn: `${config.jwt.refreshExpires}d`,
+            notBefore: 0,
+            audience: config.jwt.audience,
+            issuer: config.jwt.issuer,
+            algorithm: "HS256",
+        }
+    );
 };
 
 export default User;

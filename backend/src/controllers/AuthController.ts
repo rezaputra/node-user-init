@@ -1,6 +1,6 @@
 import bcrypt from "bcrypt";
 import { Request, Response, NextFunction } from "express";
-import Otp, { IOtp } from "../models/Otp";
+import Otp from "../models/Otp";
 import { generateVerificationEmailBody } from "../utils/email/emailBody";
 import emailSender from "../utils/email/emailSender";
 import User, { IUser } from "../models/User";
@@ -9,18 +9,17 @@ import { NotFoundError } from "../utils/errors/notFoundError";
 import { generateOtp } from "./helper/generateOtp";
 import { generateAccessToken, generateRefreshToken } from "./helper/generateToken";
 import { CustomRequest } from "../middleware/auth/checkJwt";
-import Token, { IToken, TokenType } from "../models/Token";
+import Token, { TokenType } from "../models/Token";
 
 class AuthController {
     static async sendOTP(req: Request, res: Response, next: NextFunction) {
         try {
             const { email }: { email: string } = req.body;
 
-            const value: string = await generateOtp();
-            const newOtp = new Otp({ email, value });
-            await newOtp.save();
+            const otp: string = await generateOtp();
+            await Otp.create({ email, otp });
 
-            const emailBody: string = generateVerificationEmailBody(value);
+            const emailBody: string = generateVerificationEmailBody(otp);
             emailSender(email, "Verification email", emailBody);
 
             return res.status(200).json({
