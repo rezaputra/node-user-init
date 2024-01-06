@@ -1,25 +1,37 @@
 import { Router } from "express";
-import { loginSchema, sendOtpSchema, verifyOtpSchema } from "../middleware/validation/schema";
 import { asyncHandler } from "../middleware/handler/asyncHandler";
 import AuthController from "../controllers/AuthController";
-import { checkJwt } from "../middleware/auth/checkJwt";
+import { checkAccess, checkRefresh, checkReset } from "../middleware/auth/checkJwt";
+import authValidation from "../middleware/validation/authValidation";
 
 const router = Router();
 
-router.post("/send-otp", sendOtpSchema, asyncHandler(AuthController.sendOTP));
+router.post("/send-otp", authValidation.sendOtp, asyncHandler(AuthController.sendOTP));
 
-router.patch("/verify-email", verifyOtpSchema, asyncHandler(AuthController.verifyOtp));
+router.patch("/verify-email", authValidation.verifyOtp, asyncHandler(AuthController.verifyOtp));
 
-router.post("/login", loginSchema, asyncHandler(AuthController.login));
+router.post("/login", authValidation.login, asyncHandler(AuthController.login));
 
-router.post("/logout", [checkJwt], asyncHandler(AuthController.logout));
+router.post("/logout", [checkAccess], asyncHandler(AuthController.logout));
 
-router.post("/master-logout", [checkJwt], asyncHandler(AuthController.logoutAllDevices));
+router.post("/master-logout", [checkAccess], asyncHandler(AuthController.logoutAllDevices));
 
-router.get("refresh-token");
+router.get("/refresh-token", [checkRefresh], asyncHandler(AuthController.refreshAccessToken));
 
-router.post("forgot-password");
-router.patch("reset-password");
+router.post("/forgot-password", authValidation.forgotPassword, asyncHandler(AuthController.forgotPassword));
 
-router.patch("update-password");
+router.post(
+    "/verify-reset-token/:token",
+    authValidation.verifyForgotPassword,
+    [checkReset],
+    asyncHandler(AuthController.verifyForgotPassword)
+);
+
+router.patch(
+    "/reset-password/:token",
+    authValidation.resetPassword,
+    [checkReset],
+    asyncHandler(AuthController.resetPassword)
+);
+
 export default router;

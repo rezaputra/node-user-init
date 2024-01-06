@@ -5,14 +5,23 @@ import { errorHandler } from "./middleware/handler/errorHandler";
 import config from "./config";
 import { lostHandler } from "./middleware/handler/lostHandler";
 import { closeDB, connectDB } from "./config/mongodb";
+import cookieParser from "cookie-parser";
 
 const app = express();
 app.use(json());
+app.use(cookieParser());
 
 app.use("/" + config.prefix, routes);
 
 app.use(errorHandler);
-app.use(lostHandler);
+app.use((req, res) => {
+    const response = {
+        success: false,
+        status: 404,
+        message: "Resource not found",
+    };
+    res.status(404).json(response);
+});
 
 async function startServer() {
     try {

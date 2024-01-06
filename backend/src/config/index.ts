@@ -2,6 +2,7 @@ import * as dotenv from "dotenv";
 dotenv.config();
 
 const config = {
+    env: process.env.NODE_ENV || "development",
     jwt: {
         access: process.env.JWT_ACCESS_TOKEN_SECRET,
         refresh: process.env.JWT_REFRESH_TOKEN_SECRET,
@@ -12,6 +13,7 @@ const config = {
         refreshExpires: process.env.JWT_REFRESH_TOKEN_EXPIRES,
     },
     port: process.env.PORT || 3000,
+    url: process.env.API_URL || "http://127.0.0.1:8000/",
     prefix: process.env.API_PREFIX || "api/v1",
     db: {
         uri: process.env.DB_URI,

@@ -1,6 +1,6 @@
 import { Request, Response, NextFunction } from "express";
 import { CustomRequest } from "./checkJwt";
-import { Roles } from "../../models/User";
+import User, { Roles } from "../../models/User";
 import { CustomError } from "../../utils/errors/customError";
 import { ForbiddenError } from "../../utils/errors/forbiddenError";
 import { NotFoundError } from "../../utils/errors/notFoundError";
@@ -15,19 +15,29 @@ import { NotFoundError } from "../../utils/errors/notFoundError";
 export function checkRole(roles: Array<Roles>) {
     return async (req: Request, res: Response, next: NextFunction) => {
         try {
-            const user = (req as CustomRequest).token.payload;
+            const userPayload = (req as CustomRequest).token.payload;
 
-            if (!user) {
-                throw new NotFoundError("User not found");
-            }
-
-            if (!roles.includes(user.role && user.verified === false)) {
+            if (!roles.includes(userPayload.role)) {
                 throw new ForbiddenError("Not enough permission");
             }
 
             next();
         } catch (error) {
-            throw new CustomError("Error check role");
+            next(error);
         }
     };
+}
+
+export async function isVerified(req: Request, res: Response, next: NextFunction) {
+    try {
+        const userPayload = (req as CustomRequest).token.payload;
+
+        if (userPayload.verified === true) {
+            throw new ForbiddenError("Please verify your email");
+        }
+
+        next();
+    } catch (error) {
+        next(error);
+    }
 }

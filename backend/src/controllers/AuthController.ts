@@ -1,31 +1,34 @@
-import bcrypt from "bcrypt";
 import { Request, Response, NextFunction } from "express";
-import Otp from "../models/Otp";
-import { generateVerificationEmailBody } from "../utils/email/emailBody";
+import Otp, { IOtp } from "../models/Otp";
+import GenerateEmail from "../utils/email/emailBody";
 import emailSender from "../utils/email/emailSender";
-import User, { IUser } from "../models/User";
+import User, { UserDocument } from "../models/User";
 import { ClientError } from "../utils/errors/clientError";
-import { NotFoundError } from "../utils/errors/notFoundError";
-import { generateOtp } from "./helper/generateOtp";
-import { generateAccessToken, generateRefreshToken } from "./helper/generateToken";
 import { CustomRequest } from "../middleware/auth/checkJwt";
-import Token, { TokenType } from "../models/Token";
+import Token, { TokenDocument, TokenType } from "../models/Token";
+import { UnauthorizedError } from "../utils/errors/unauthorizedError";
+import { CustomError } from "../utils/errors/customError";
+import bcrypt from "bcrypt";
+import { NotFoundError } from "../utils/errors/notFoundError";
 
 class AuthController {
     static async sendOTP(req: Request, res: Response, next: NextFunction) {
         try {
             const { email }: { email: string } = req.body;
 
-            const otp: string = await generateOtp();
-            await Otp.create({ email, otp });
+            const newOtp: IOtp = new Otp({ email });
+            const generatedOtp: string = await newOtp.generateAndSaveOtp();
 
-            const emailBody: string = generateVerificationEmailBody(otp);
+            const emailBody: string = GenerateEmail.verificationEmail(generatedOtp);
             emailSender(email, "Verification email", emailBody);
 
-            return res.status(200).json({
+            const response = {
                 success: true,
-                message: "OTP Sent Successfully, Please check your email",
-            });
+                status: 200,
+                message: `OTP Sent Successfully, Please check your email`,
+            };
+
+            return res.status(200).json(response);
         } catch (error) {
             next(error);
         }
@@ -44,6 +47,7 @@ class AuthController {
 
             const response = {
                 success: true,
+                status: 200,
                 message: "Email verified successfully",
             };
 
@@ -56,28 +60,22 @@ class AuthController {
     static async login(req: Request, res: Response, next: NextFunction) {
         try {
             const { email, password }: { email: string; password: string } = req.body;
-            const user = (await User.findOne({ email })) as IUser;
 
-            if (!user) {
-                throw new NotFoundError("Account not found");
+            const user: UserDocument = await User.findByCredential(email, password);
+            const accessToken = await user.generateAccessToken();
+            const refreshToken = await user.generateRefreshToken();
+
+            if (!accessToken || !refreshToken) {
+                throw new CustomError("Error generate token");
             }
-
-            const passwordMatch = await bcrypt.compare(password, user.password);
-            if (!passwordMatch) {
-                throw new ClientError("Wrong password");
-            }
-
-            const accessToken: string = generateAccessToken(user);
-            const { refreshToken, expirationDate }: { refreshToken: string; expirationDate: Date } =
-                await generateRefreshToken(user);
 
             user.active = true;
             user.lastLogin = new Date();
             await user.save();
 
-            res.cookie("refreshToken", refreshToken, {
+            res.cookie("refreshToken", refreshToken?.value, {
                 httpOnly: true,
-                expires: expirationDate,
+                expires: refreshToken?.expiresAt,
             });
 
             const response = {
@@ -97,15 +95,17 @@ class AuthController {
     static async logout(req: Request, res: Response, next: NextFunction) {
         try {
             res.clearCookie("refreshToken");
-            const user = (req as CustomRequest).token.payload;
+            const userPayload = (req as CustomRequest).token.payload;
 
-            await User.updateOne({ _id: user.userId }, { active: false, lastLogin: new Date() });
+            await User.updateOne({ _id: userPayload._id }, { active: false, lastLogin: new Date() });
 
-            return res.status(200).json({
+            const response = {
                 success: true,
                 status: 200,
                 message: "Logout success",
-            });
+            };
+
+            return res.status(200).json(response);
         } catch (error) {
             next(error);
         }
@@ -114,22 +114,138 @@ class AuthController {
     static async logoutAllDevices(req: Request, res: Response, next: NextFunction) {
         try {
             res.clearCookie("refreshToken");
-            const user = (req as CustomRequest).token.payload;
+            const userPayload = (req as CustomRequest).token.payload;
 
-            await Token.deleteMany({ userId: user.userId });
-            await User.updateOne({ _id: user.userId }, { active: false, lastLogin: new Date() });
+            await Token.deleteMany({ userId: userPayload._id });
+            await User.updateOne({ _id: userPayload._id }, { active: false, lastLogin: new Date() });
 
-            return res.status(200).json({
+            const response = {
                 success: true,
                 status: 200,
                 message: "Logout all devices success",
-            });
+            };
+
+            return res.status(200).json(response);
         } catch (error) {
             next(error);
         }
     }
 
-    static async refreshAccessToken(req: Request, res: Response, next: NextFunction) {}
+    static async refreshAccessToken(req: Request, res: Response, next: NextFunction) {
+        try {
+            const refreshCookie = req.cookies.refreshToken;
+            const userPayload = (req as CustomRequest).token.payload;
+
+            const token = await Token.findOne({ userId: userPayload._id, type: TokenType.REFRESH });
+
+            if (!token || token.value !== refreshCookie) {
+                throw new UnauthorizedError("Please login");
+            }
+
+            const user = await User.findById(userPayload._id);
+            const accessToken = user?.generateAccessToken();
+
+            const response = {
+                success: true,
+                status: 200,
+                message: "Success generate refresh access token",
+                toke: accessToken,
+            };
+
+            return res.status(200).json(response);
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async forgotPassword(req: Request, res: Response, next: NextFunction) {
+        try {
+            const email: string = req.body.email;
+            const user = await User.findOne({ email });
+            const resetToken = await user?.generateResetToken();
+
+            if (!resetToken) {
+                throw new CustomError("Error generate reset token");
+            }
+
+            const emailBody: string = GenerateEmail.forgotPasswordEmail(resetToken.value);
+            emailSender(email, "Reset password", emailBody);
+
+            const response = {
+                success: true,
+                status: 200,
+                message: "Email send successfully, Please check your email",
+            };
+
+            return res.status(200).json(response);
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async verifyForgotPassword(req: Request, res: Response, next: NextFunction) {
+        try {
+            const resetToken = req.params.token;
+
+            const response = {
+                success: true,
+                status: 200,
+                message: "Success validate reset token, Please sent new password",
+                token: resetToken,
+            };
+
+            return res.status(200).json(response);
+        } catch (error) {
+            next(error);
+        }
+    }
+
+    static async resetPassword(req: Request, res: Response, next: NextFunction) {
+        try {
+            const { password, confirmPassword } = req.body;
+            const resetTokenParam = req.params.token;
+            const userPayload = (req as CustomRequest).token.payload;
+
+            const token = await Token.findOne({ userId: userPayload._id, type: TokenType.RESET });
+
+            if (!token || token.value !== resetTokenParam) {
+                throw new UnauthorizedError("Token is invalid");
+            }
+
+            const user = await User.findById({ _id: userPayload._id });
+
+            if (!user) {
+                throw new NotFoundError("User not found");
+            }
+
+            user.password = password;
+            user.active = true;
+            user.lastLogin = new Date();
+            await user.save();
+
+            await Token.deleteMany({ userId: user._id });
+
+            const accessToken = await user.generateAccessToken();
+            const refreshToken = await user.generateRefreshToken();
+
+            res.cookie("refreshToken", refreshToken?.value, {
+                httpOnly: true,
+                expires: refreshToken?.expiresAt,
+            });
+
+            const response = {
+                success: true,
+                status: 200,
+                message: "Success for reset the password",
+                data: [user],
+                token: accessToken,
+            };
+
+            return res.status(200).json(response);
+        } catch (error) {
+            next(error);
+        }
+    }
 }
 
 export default AuthController;
