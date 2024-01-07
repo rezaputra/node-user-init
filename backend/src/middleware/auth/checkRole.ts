@@ -1,21 +1,16 @@
 import { Request, Response, NextFunction } from "express";
 import { CustomRequest } from "./checkJwt";
-import User, { Roles } from "../../models/User";
-import { CustomError } from "../../utils/errors/customError";
-import { ForbiddenError } from "../../utils/errors/forbiddenError";
-import { NotFoundError } from "../../utils/errors/notFoundError";
+import { Roles } from "../../models/User";
+import { ForbiddenError } from "../../config/errors/forbiddenError";
 
-// interface ITokenPayload {
-//     userId: string,
-//     email: string,
-//     role: Roles,
-//     verified: boolean,
-// }
-
-export function checkRole(roles: Array<Roles>) {
+export function checkRole(roles: Array<Roles>, verified: boolean = true) {
     return async (req: Request, res: Response, next: NextFunction) => {
         try {
             const userPayload = (req as CustomRequest).token.payload;
+
+            if (verified && !userPayload.verified) {
+                throw new ForbiddenError("Please verify your email");
+            }
 
             if (!roles.includes(userPayload.role)) {
                 throw new ForbiddenError("Not enough permission");
@@ -26,18 +21,4 @@ export function checkRole(roles: Array<Roles>) {
             next(error);
         }
     };
-}
-
-export async function isVerified(req: Request, res: Response, next: NextFunction) {
-    try {
-        const userPayload = (req as CustomRequest).token.payload;
-
-        if (userPayload.verified === true) {
-            throw new ForbiddenError("Please verify your email");
-        }
-
-        next();
-    } catch (error) {
-        next(error);
-    }
 }

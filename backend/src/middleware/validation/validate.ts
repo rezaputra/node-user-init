@@ -1,6 +1,6 @@
 import { validationResult } from "express-validator";
 import { Request, Response, NextFunction } from "express";
-import { CustomError } from "../../utils/errors/customError";
+import { CustomError } from "../../config/errors/customError";
 
 export function validate(req: Request, res: Response, next: NextFunction) {
     const errors = validationResult(req);

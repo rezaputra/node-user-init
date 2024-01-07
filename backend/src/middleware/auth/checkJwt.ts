@@ -1,26 +1,28 @@
 import { Request, Response, NextFunction } from "express";
-import jwt, { JwtPayload, verify } from "jsonwebtoken";
+import jwt, { JwtPayload, VerifyOptions, verify } from "jsonwebtoken";
 import config from "../../config";
-import { UnauthorizedError } from "../../utils/errors/unauthorizedError";
-import { ForbiddenError } from "../../utils/errors/forbiddenError";
+import { UnauthorizedError } from "../../config/errors/unauthorizedError";
+import { ForbiddenError } from "../../config/errors/forbiddenError";
 
 export interface CustomRequest extends Request {
     token: JwtPayload;
 }
 
+const jwtProps: VerifyOptions = {
+    complete: true,
+    audience: config.jwt.audience,
+    issuer: config.jwt.issuer,
+    algorithms: ["HS256"],
+    clockTolerance: 0,
+    ignoreExpiration: false,
+    ignoreNotBefore: false,
+};
+
 export const checkAccess = (req: Request, res: Response, next: NextFunction) => {
     try {
         const token = <string>req.headers["authorization"]?.split(" ")[1];
 
-        const jwtPayload = (<any>verify(token, config.jwt.access!, {
-            complete: true,
-            audience: config.jwt.audience,
-            issuer: config.jwt.issuer,
-            algorithms: ["HS256"],
-            clockTolerance: 0,
-            ignoreExpiration: false,
-            ignoreNotBefore: false,
-        })) as JwtPayload;
+        const jwtPayload = (<any>verify(token, config.jwt.access!, jwtProps)) as JwtPayload;
         (req as CustomRequest).token = jwtPayload;
         next();
     } catch (error) {
@@ -36,15 +38,7 @@ export const checkRefresh = (req: Request, res: Response, next: NextFunction) =>
     try {
         const token = req.cookies.refreshToken;
 
-        const jwtPayload = (<any>verify(token, config.jwt.refresh!, {
-            complete: true,
-            audience: config.jwt.audience,
-            issuer: config.jwt.issuer,
-            algorithms: ["HS256"],
-            clockTolerance: 0,
-            ignoreExpiration: false,
-            ignoreNotBefore: false,
-        })) as JwtPayload;
+        const jwtPayload = (<any>verify(token, config.jwt.refresh!, jwtProps)) as JwtPayload;
         (req as CustomRequest).token = jwtPayload;
         next();
     } catch (error) {
@@ -60,15 +54,7 @@ export const checkReset = (req: Request, res: Response, next: NextFunction) => {
     try {
         const token = req.params.token;
 
-        const jwtPayload = (<any>verify(token, config.jwt.refresh!, {
-            complete: true,
-            audience: config.jwt.audience,
-            issuer: config.jwt.issuer,
-            algorithms: ["HS256"],
-            clockTolerance: 0,
-            ignoreExpiration: false,
-            ignoreNotBefore: false,
-        })) as JwtPayload;
+        const jwtPayload = (<any>verify(token, config.jwt.refresh!, jwtProps)) as JwtPayload;
         (req as CustomRequest).token = jwtPayload;
         next();
     } catch (error) {

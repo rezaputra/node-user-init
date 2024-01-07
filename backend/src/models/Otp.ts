@@ -1,6 +1,6 @@
 import mongoose, { Document, Schema, Model } from "mongoose";
 import otpGenerator from "otp-generator";
-import { CustomError } from "../utils/errors/customError";
+import { CustomError } from "../config/errors/customError";
 
 export interface IOtp extends Document {
     email: string;

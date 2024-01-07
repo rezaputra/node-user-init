@@ -1,8 +1,8 @@
 import bcrypt from "bcrypt";
 import jwt from "jsonwebtoken";
 import mongoose, { Document, Schema, Model } from "mongoose";
-import { NotFoundError } from "../utils/errors/notFoundError";
-import { ClientError } from "../utils/errors/clientError";
+import { NotFoundError } from "../config/errors/notFoundError";
+import { ClientError } from "../config/errors/clientError";
 import config from "../config";
 import Token, { TokenDocument, TokenType } from "./Token";
 
@@ -10,6 +10,8 @@ import Token, { TokenDocument, TokenType } from "./Token";
 export interface UserDocument extends Document {
     fullName: string;
     profile: string;
+    dateBirth: Date;
+    address: string;
     email: string;
     password: string;
     role: Roles;
@@ -28,6 +30,8 @@ export interface UserModel extends Model<UserDocument> {
 export interface ResponseUser {
     fullName: string;
     profile: string;
+    dateBirth: Date;
+    address: string;
     email: string;
 }
 
@@ -42,6 +46,8 @@ const UserSchema: Schema<UserDocument> = new mongoose.Schema(
     {
         fullName: { type: String, trim: true, default: null },
         profile: { type: String, trim: true, default: null },
+        dateBirth: { type: Date, trim: true, default: null },
+        address: { type: String, trim: true, default: null },
         email: { type: String, required: true, unique: true, trim: true },
         password: { type: String, required: true, trim: true },
         role: { type: String, enum: [Roles.ADMIN, Roles.USER], required: true, default: Roles.USER },
@@ -56,8 +62,8 @@ const UserSchema: Schema<UserDocument> = new mongoose.Schema(
 UserSchema.set("toJSON", {
     virtuals: true,
     transform: function (_doc, ret) {
-        const { fullName, profile, email } = ret as ResponseUser;
-        return { fullName, profile, email };
+        const { email, fullName, profile, dateBirth, address } = ret as ResponseUser;
+        return { email, fullName, profile, dateBirth, address };
     },
 });
 

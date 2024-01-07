@@ -1,15 +1,15 @@
 import { Request, Response, NextFunction } from "express";
 import Otp, { IOtp } from "../models/Otp";
-import GenerateEmail from "../utils/email/emailBody";
-import emailSender from "../utils/email/emailSender";
+import GenerateEmail from "../config/email/emailBody";
+import emailSender from "../config/email/emailSender";
 import User, { UserDocument } from "../models/User";
-import { ClientError } from "../utils/errors/clientError";
+import { ClientError } from "../config/errors/clientError";
 import { CustomRequest } from "../middleware/auth/checkJwt";
 import Token, { TokenDocument, TokenType } from "../models/Token";
-import { UnauthorizedError } from "../utils/errors/unauthorizedError";
-import { CustomError } from "../utils/errors/customError";
+import { UnauthorizedError } from "../config/errors/unauthorizedError";
+import { CustomError } from "../config/errors/customError";
 import bcrypt from "bcrypt";
-import { NotFoundError } from "../utils/errors/notFoundError";
+import { NotFoundError } from "../config/errors/notFoundError";
 
 class AuthController {
     static async sendOTP(req: Request, res: Response, next: NextFunction) {
@@ -61,7 +61,7 @@ class AuthController {
         try {
             const { email, password }: { email: string; password: string } = req.body;
 
-            const user: UserDocument = await User.findByCredential(email, password);
+            const user = await User.findByCredential(email, password);
             const accessToken = await user.generateAccessToken();
             const refreshToken = await user.generateRefreshToken();
 

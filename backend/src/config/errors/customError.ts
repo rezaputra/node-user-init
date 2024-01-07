@@ -12,6 +12,8 @@ export class CustomError extends Error {
 }
 
 export interface IResponseError {
+    success: boolean;
+    status: number;
     message: string;
     additionalInfo?: any;
 }

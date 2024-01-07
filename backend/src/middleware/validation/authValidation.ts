@@ -1,11 +1,11 @@
 import { ValidationChain, body, param } from "express-validator";
 import User from "../../models/User";
-import { NotFoundError } from "../../utils/errors/notFoundError";
-import { ClientError } from "../../utils/errors/clientError";
+import { NotFoundError } from "../../config/errors/notFoundError";
+import { ClientError } from "../../config/errors/clientError";
 import { validate } from "./validate";
 
 // Send OTP and Verify OTP
-const validateOtpEmail: ValidationChain = body("email", "Invalid email address")
+const isEmailVerified: ValidationChain = body("email", "Invalid email address")
     .isEmail()
     .custom(async (value) => {
         const existingEmail = await User.findOne({ email: value });
@@ -18,18 +18,15 @@ const validateOtpEmail: ValidationChain = body("email", "Invalid email address")
         return true;
     });
 
-const validateOtpValue: ValidationChain = body("body", "OTP not found").isEmpty();
+const otp: ValidationChain = body("otp", "OTP not found").isEmpty();
 
 // Login
-const validateLoginEmail: ValidationChain = body("email", "Email field cannot be empty").exists({
-    checkFalsy: true,
-});
-const validateLoginPassword: ValidationChain = body("password", "Password field cannot be empty").exists({
-    checkFalsy: true,
-});
+const email: ValidationChain = body("email", "Email field cannot be empty").exists({ checkFalsy: true });
+
+const password: ValidationChain = body("password", "Password field cannot be empty").exists({ checkFalsy: true });
 
 // Check forgot email
-const validateForgotEmail: ValidationChain = body("email", "Invalid email address")
+const emailRegistered: ValidationChain = body("email", "Invalid email address")
     .isEmail()
     .custom(async (value) => {
         const existingEmail = await User.findOne({ email: value });
@@ -40,15 +37,15 @@ const validateForgotEmail: ValidationChain = body("email", "Invalid email addres
     });
 
 // Reset Token
-const validateResetToken: ValidationChain = param("token", "Reset token not found").exists({ checkFalsy: true });
+const resetToken: ValidationChain = param("token", "Reset token not found").exists({ checkFalsy: true });
 
 // Reset new password
-const validatePassword: ValidationChain = body("password", "Password is too weak").isStrongPassword({
+const strongPassword: ValidationChain = body("password", "Weak password").isStrongPassword({
     minLength: 6,
     minSymbols: 0,
 });
 
-const validateConfirmPassword: ValidationChain = body("confPassword", "Confirm password cannot be empty")
+const confPassword: ValidationChain = body("confPassword", "Confirm password cannot be empty")
     .exists({ checkFalsy: true })
     .custom((value, { req }) => {
         if (value !== req.body.password) {
@@ -57,12 +54,14 @@ const validateConfirmPassword: ValidationChain = body("confPassword", "Confirm p
         return true;
     });
 
-const sendOtp = [validateOtpEmail, validate];
-const verifyOtp = [validateOtpEmail, validateOtpValue, validate];
-const login = [validateLoginEmail, validateLoginPassword, validate];
-const forgotPassword = [validateForgotEmail, validate];
-const verifyForgotPassword = [validateResetToken, validate];
-const resetPassword = [validatePassword, validateConfirmPassword, validate];
+//
+// Validate result
+const sendOtp = [isEmailVerified, validate];
+const verifyOtp = [isEmailVerified, otp, validate];
+const login = [email, password, validate];
+const forgotPassword = [emailRegistered, validate];
+const verifyForgotPassword = [resetToken, validate];
+const resetPassword = [strongPassword, confPassword, validate];
 
 const authValidation = {
     sendOtp,

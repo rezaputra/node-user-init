@@ -1,5 +1,5 @@
 import nodemailer, { SendMailOptions, SentMessageInfo } from "nodemailer";
-import config from "../../config";
+import config from "..";
 
 async function emailSender(email: string, title: string, body: string): Promise<any> {
     try {

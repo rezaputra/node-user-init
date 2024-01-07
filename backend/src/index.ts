@@ -2,10 +2,9 @@ import express from "express";
 import { json } from "body-parser";
 import routes from "./routes/index";
 import { errorHandler } from "./middleware/handler/errorHandler";
-import config from "./config";
-import { lostHandler } from "./middleware/handler/lostHandler";
 import { closeDB, connectDB } from "./config/mongodb";
 import cookieParser from "cookie-parser";
+import config from "./config";
 
 const app = express();
 app.use(json());
