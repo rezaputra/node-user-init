@@ -1,22 +1,46 @@
+import bcrypt from "bcrypt";
 import { Request, Response, NextFunction } from "express";
-import Otp, { IOtp } from "../models/Otp";
+import Otp, { OtpDocument } from "../models/Otp";
 import GenerateEmail from "../config/email/emailBody";
 import emailSender from "../config/email/emailSender";
-import User, { UserDocument } from "../models/User";
+import User, { Roles, UserDocument } from "../models/User";
 import { ClientError } from "../config/errors/clientError";
 import { CustomRequest } from "../middleware/auth/checkJwt";
 import Token, { TokenDocument, TokenType } from "../models/Token";
 import { UnauthorizedError } from "../config/errors/unauthorizedError";
-import { CustomError } from "../config/errors/customError";
-import bcrypt from "bcrypt";
 import { NotFoundError } from "../config/errors/notFoundError";
 
 class AuthController {
+    static async signup(req: Request, res: Response, next: NextFunction) {
+        try {
+            const {
+                fullName,
+                email,
+                password,
+                confPassword,
+            }: { fullName: string; email: string; password: string; confPassword: string } = req.body;
+
+            const newUser: UserDocument = new User({ fullName, email, password, role: Roles.USER });
+            const savedUser: UserDocument = await newUser.save();
+
+            const responseData = {
+                success: true,
+                status: 201,
+                message: "User registered successfully",
+                data: [savedUser],
+            };
+
+            return res.status(201).json(responseData);
+        } catch (error) {
+            next(error);
+        }
+    }
+
     static async sendOTP(req: Request, res: Response, next: NextFunction) {
         try {
             const { email }: { email: string } = req.body;
 
-            const newOtp: IOtp = new Otp({ email });
+            const newOtp: OtpDocument = new Otp({ email });
             const generatedOtp: string = await newOtp.generateAndSaveOtp();
 
             const emailBody: string = GenerateEmail.verificationEmail(generatedOtp);
@@ -61,13 +85,12 @@ class AuthController {
         try {
             const { email, password }: { email: string; password: string } = req.body;
 
-            const user = await User.findByCredential(email, password);
-            const accessToken = await user.generateAccessToken();
-            const refreshToken = await user.generateRefreshToken();
+            const user: UserDocument = await User.findByCredential(email, password);
 
-            if (!accessToken || !refreshToken) {
-                throw new CustomError("Error generate token");
-            }
+            const token = new Token();
+
+            const accessToken = await token.generateAccessToken(user);
+            const refreshToken = await token.generateRefreshToken(user);
 
             user.active = true;
             user.lastLogin = new Date();
@@ -133,23 +156,23 @@ class AuthController {
 
     static async refreshAccessToken(req: Request, res: Response, next: NextFunction) {
         try {
-            const refreshCookie = req.cookies.refreshToken;
+            const refreshTokenCookie = req.cookies.refreshToken;
             const userPayload = (req as CustomRequest).token.payload;
 
-            const token = await Token.findOne({ userId: userPayload._id, type: TokenType.REFRESH });
+            const token = await Token.findOne({ userId: userPayload._id, type: TokenType.REFRESH }).populate("userId");
+            const user = token?.userId as any;
 
-            if (!token || token.value !== refreshCookie) {
+            if (!token || token.value !== refreshTokenCookie) {
                 throw new UnauthorizedError("Please login");
             }
 
-            const user = await User.findById(userPayload._id);
-            const accessToken = user?.generateAccessToken();
+            const accessToken = token.generateAccessToken(user);
 
             const response = {
                 success: true,
                 status: 200,
                 message: "Success generate refresh access token",
-                toke: accessToken,
+                token: accessToken,
             };
 
             return res.status(200).json(response);
@@ -162,11 +185,12 @@ class AuthController {
         try {
             const email: string = req.body.email;
             const user = await User.findOne({ email });
-            const resetToken = await user?.generateResetToken();
 
-            if (!resetToken) {
-                throw new CustomError("Error generate reset token");
+            if (!user) {
+                throw new NotFoundError("User not found");
             }
+            const token = new Token();
+            const resetToken = await token.generateResetToken(user);
 
             const emailBody: string = GenerateEmail.forgotPasswordEmail(resetToken.value);
             emailSender(email, "Reset password", emailBody);
@@ -206,31 +230,29 @@ class AuthController {
             const resetTokenParam = req.params.token;
             const userPayload = (req as CustomRequest).token.payload;
 
-            const token = await Token.findOne({ userId: userPayload._id, type: TokenType.RESET });
+            const token = await Token.findOne({ userId: userPayload._id, type: TokenType.RESET }).populate("userId");
+            const user = token?.userId as any;
 
             if (!token || token.value !== resetTokenParam) {
-                throw new UnauthorizedError("Token is invalid");
+                throw new UnauthorizedError("Invalid a token");
             }
 
-            const user = await User.findById({ _id: userPayload._id });
+            const passwordHash = bcrypt.hashSync(password, 10);
 
-            if (!user) {
-                throw new NotFoundError("User not found");
-            }
+            await User.findByIdAndUpdate(userPayload._id, {
+                password: passwordHash,
+                active: true,
+                lastLogin: new Date(),
+            });
 
-            user.password = password;
-            user.active = true;
-            user.lastLogin = new Date();
-            await user.save();
+            await Token.deleteMany({ userId: token.userId });
 
-            await Token.deleteMany({ userId: user._id });
+            const accessToken = await token.generateAccessToken(user);
+            const refreshToken = await token.generateRefreshToken(user);
 
-            const accessToken = await user.generateAccessToken();
-            const refreshToken = await user.generateRefreshToken();
-
-            res.cookie("refreshToken", refreshToken?.value, {
+            res.cookie("refreshToken", refreshToken.value, {
                 httpOnly: true,
-                expires: refreshToken?.expiresAt,
+                expires: refreshToken.expiresAt,
             });
 
             const response = {

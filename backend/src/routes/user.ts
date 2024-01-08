@@ -1,4 +1,5 @@
-import { Router } from "express";
+import path from "path";
+import express, { Router } from "express";
 import { asyncHandler } from "../middleware/handler/asyncHandler";
 import UserController from "../controllers/UserController";
 import userValidation from "../middleware/validation/userValidation";
@@ -9,20 +10,20 @@ import uploadProfile from "../middleware/upload/profileUpload";
 
 const router = Router();
 
-router.post("/", userValidation.signup, asyncHandler(UserController.signup));
-
 router.get("/", [checkAccess], asyncHandler(UserController.userProfile));
 
 router.patch("/", [checkAccess, checkRole([Roles.USER])], asyncHandler(UserController.updateUser));
 
+router.use("/profile", [checkAccess], express.static(path.join(__dirname, "../../public/profiles")));
+
 router.patch(
-    "/upload-profile",
+    "/profile",
     [checkAccess, checkRole([Roles.USER])],
     uploadProfile.single("profileImage"),
     asyncHandler(UserController.uploadProfile)
 );
 
-router.patch("/delete-profile", [checkAccess, checkRole([Roles.USER])], asyncHandler(UserController.deleteProfile));
+router.delete("/profile", [checkAccess, checkRole([Roles.USER])], asyncHandler(UserController.deleteProfile));
 
 router.patch(
     "/change-password",
@@ -31,6 +32,11 @@ router.patch(
     asyncHandler(UserController.changePassword)
 );
 
-router.patch("/change-email", [checkAccess, checkRole([Roles.USER])], asyncHandler(UserController.changeEmail));
+router.patch(
+    "/change-email",
+    userValidation.changeEmail,
+    [checkAccess, checkRole([Roles.USER])],
+    asyncHandler(UserController.changeEmail)
+);
 
 export default router;

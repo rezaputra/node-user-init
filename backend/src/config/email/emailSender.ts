@@ -1,5 +1,6 @@
 import nodemailer, { SendMailOptions, SentMessageInfo } from "nodemailer";
 import config from "..";
+import { CustomError } from "../errors/customError";
 
 async function emailSender(email: string, title: string, body: string): Promise<any> {
     try {
@@ -23,7 +24,7 @@ async function emailSender(email: string, title: string, body: string): Promise<
 
         return info;
     } catch (error) {
-        throw new Error(error instanceof Error ? error.message : String(error));
+        throw new CustomError("Failed sending email");
     }
 }
 

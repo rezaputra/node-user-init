@@ -4,13 +4,19 @@ import routes from "./routes/index";
 import { errorHandler } from "./middleware/handler/errorHandler";
 import { closeDB, connectDB } from "./config/mongodb";
 import cookieParser from "cookie-parser";
+import cors from "cors";
 import config from "./config";
+import corsOptions from "./config/cors";
+import { generalLimiter } from "./config/limiter";
 
 const app = express();
-app.use(json());
+app.disable("x-powered-by");
+app.use(express.json());
 app.use(cookieParser());
+app.use(cors(corsOptions));
+app.options("*", cors(corsOptions));
 
-app.use("/" + config.prefix, routes);
+app.use("/" + config.prefix, generalLimiter, routes);
 
 app.use(errorHandler);
 app.use((req, res) => {

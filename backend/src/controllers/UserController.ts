@@ -1,14 +1,11 @@
-import bcrypt from "bcrypt";
 import { Request, Response, NextFunction } from "express";
+import fs from "fs";
+import multer from "multer";
+import Token from "../models/Token";
 import User, { UserDocument, Roles } from "../models/User";
+import { ClientError } from "../config/errors/clientError";
 import { CustomRequest } from "../middleware/auth/checkJwt";
 import { NotFoundError } from "../config/errors/notFoundError";
-import { ClientError } from "../config/errors/clientError";
-import Token from "../models/Token";
-import fs from "fs";
-import { CustomError } from "../config/errors/customError";
-import uploadProfile from "../middleware/upload/profileUpload";
-import multer from "multer";
 
 class UserController {
     static async signup(req: Request, res: Response, next: NextFunction) {
@@ -114,7 +111,7 @@ class UserController {
                 throw new NotFoundError("User not found");
             }
 
-            const oldProfile: string = `${file?.destination}/${user.profile}`;
+            const oldProfile: string = `${file.destination}/${user.profile}`;
 
             try {
                 fs.unlinkSync(oldProfile);
@@ -159,7 +156,7 @@ class UserController {
                 console.error("Error deleting old profile");
             }
 
-            user.profile = "null";
+            user.profile = "";
             await user.save();
 
             const updatedUser = await User.findById(userPayload._id);
@@ -193,9 +190,10 @@ class UserController {
 
             res.clearCookie("refreshToken");
             await Token.deleteMany({ userId: userPayload._id });
+            const token = new Token();
 
-            const accessToken = await user.generateAccessToken();
-            const refreshToken = await user.generateRefreshToken();
+            const accessToken = await token.generateAccessToken(user);
+            const refreshToken = await token.generateRefreshToken(user);
 
             res.cookie("refreshToken", refreshToken?.value, {
                 httpOnly: true,
@@ -219,13 +217,12 @@ class UserController {
         const { email, password } = req.body;
         const userPayload = (req as CustomRequest).token.payload;
 
-        const user = await User.findByCredential(userPayload._email, password);
+        const user = await User.findByCredential(userPayload.email, password);
 
         user.email = email;
         user.verified = false;
         user.active = false;
         user.lastLogin = new Date();
-
         await user.save();
 
         res.clearCookie("refreshToken");
@@ -234,7 +231,7 @@ class UserController {
         const response = {
             success: true,
             status: 200,
-            message: "Success change email",
+            message: "Success change email, please login again",
         };
 
         return res.status(200).json(response);

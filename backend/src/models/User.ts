@@ -6,7 +6,6 @@ import { ClientError } from "../config/errors/clientError";
 import config from "../config";
 import Token, { TokenDocument, TokenType } from "./Token";
 
-// Define interfaces for User and Response User
 export interface UserDocument extends Document {
     fullName: string;
     profile: string;
@@ -18,9 +17,6 @@ export interface UserDocument extends Document {
     active: boolean;
     lastLogin: Date;
     verified: boolean;
-    generateAccessToken: () => Promise<string | null>;
-    generateRefreshToken: () => Promise<TokenDocument | null>;
-    generateResetToken: () => Promise<TokenDocument | null>;
 }
 
 export interface UserModel extends Model<UserDocument> {
@@ -58,7 +54,6 @@ const UserSchema: Schema<UserDocument> = new mongoose.Schema(
     { timestamps: true }
 );
 
-// Transform schema output to a cleaner format
 UserSchema.set("toJSON", {
     virtuals: true,
     transform: function (_doc, ret) {
@@ -67,7 +62,6 @@ UserSchema.set("toJSON", {
     },
 });
 
-// Hash password before saving
 UserSchema.pre<UserDocument>("save", async function (next) {
     try {
         if (this.isModified("password")) {
@@ -80,7 +74,6 @@ UserSchema.pre<UserDocument>("save", async function (next) {
     }
 });
 
-// Static method to find a user by credentials
 UserSchema.statics.findByCredential = async function (email: string, password: string) {
     const user = await this.findOne({ email });
     if (!user) {
@@ -94,116 +87,6 @@ UserSchema.statics.findByCredential = async function (email: string, password: s
 
     return user;
 };
-
-// Instance method to generate an access token
-UserSchema.methods.generateAccessToken = function () {
-    const user = this;
-
-    const accessToken: string = jwt.sign(
-        {
-            _id: user._id,
-            email: user.email,
-            role: user.role,
-            verified: user.verified,
-        },
-        config.jwt.access!,
-        {
-            expiresIn: `${config.jwt.accessExpires}m`,
-            notBefore: 0,
-            audience: config.jwt.audience,
-            issuer: config.jwt.issuer,
-            algorithm: "HS256",
-        }
-    );
-
-    return accessToken;
-};
-
-// Instance method to generate a refresh token and manage its expiration
-UserSchema.methods.generateRefreshToken = async function () {
-    const user = this;
-
-    const existingToken = await Token.findOne({ userId: user._id, type: TokenType.REFRESH });
-
-    if (existingToken) {
-        return existingToken;
-    }
-
-    const refreshToken: string = jwt.sign(
-        {
-            _id: user._id,
-            email: user.email,
-            role: user.role,
-            verified: user.verified,
-        },
-        config.jwt.refresh as string,
-        {
-            expiresIn: `${config.jwt.refreshExpires}d`,
-            notBefore: 0,
-            audience: config.jwt.audience,
-            issuer: config.jwt.issuer,
-            algorithm: "HS256",
-        }
-    );
-
-    const expirationDate: Date = new Date();
-    expirationDate.setDate(expirationDate.getDate() + parseInt(config.jwt.refreshExpires as string));
-
-    const token: TokenDocument = new Token({
-        userId: user._id,
-        value: refreshToken,
-        type: TokenType.REFRESH,
-        expiresAt: expirationDate,
-    });
-    const savedToken = await token.save();
-
-    return savedToken;
-};
-
-// Instance method to generate a reset token
-UserSchema.methods.generateResetToken = async function () {
-    const user = this;
-
-    const existingToken = await Token.find({ userId: user._id, type: TokenType.REFRESH });
-
-    if (existingToken) {
-        await Token.deleteMany({ userId: user._id, type: TokenType.REFRESH });
-    }
-
-    const resetToken: string = jwt.sign(
-        {
-            _id: user._id,
-            email: user.email,
-            role: user.role,
-        },
-        config.jwt.refresh as string,
-        {
-            expiresIn: `${config.jwt.refreshExpires}m`,
-            notBefore: 0,
-            audience: config.jwt.audience,
-            issuer: config.jwt.issuer,
-            algorithm: "HS256",
-        }
-    );
-
-    const expirationDate: Date = new Date();
-    expirationDate.setDate(expirationDate.getDate() + parseInt(config.jwt.resetExpires as string));
-
-    const token: TokenDocument = new Token({
-        userId: user._id,
-        value: resetToken,
-        type: TokenType.RESET,
-        expiresAt: expirationDate,
-    });
-
-    const savedToken = await token.save();
-
-    return savedToken;
-};
-
-// const UserModel: Model<UserDocument> = mongoose.model<UserDocument, UserModel>("User", UserSchema);
-
-// export default UserModel;
 
 const User = mongoose.model<UserDocument, UserModel>("User", UserSchema);
 export default User;

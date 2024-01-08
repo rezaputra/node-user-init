@@ -3,10 +3,13 @@ import { asyncHandler } from "../middleware/handler/asyncHandler";
 import AuthController from "../controllers/AuthController";
 import { checkAccess, checkRefresh, checkReset } from "../middleware/auth/checkJwt";
 import authValidation from "../middleware/validation/authValidation";
+import { emailLimiter } from "../config/limiter";
 
 const router = Router();
 
-router.post("/send-otp", authValidation.sendOtp, asyncHandler(AuthController.sendOTP));
+router.post("/signup", authValidation.signup, asyncHandler(AuthController.signup));
+
+router.post("/send-otp", emailLimiter, authValidation.sendOtp, asyncHandler(AuthController.sendOTP));
 
 router.patch("/verify-email", authValidation.verifyOtp, asyncHandler(AuthController.verifyOtp));
 
@@ -18,7 +21,12 @@ router.post("/master-logout", [checkAccess], asyncHandler(AuthController.logoutA
 
 router.get("/refresh-token", [checkRefresh], asyncHandler(AuthController.refreshAccessToken));
 
-router.post("/forgot-password", authValidation.forgotPassword, asyncHandler(AuthController.forgotPassword));
+router.post(
+    "/forgot-password",
+    emailLimiter,
+    authValidation.forgotPassword,
+    asyncHandler(AuthController.forgotPassword)
+);
 
 router.post(
     "/verify-reset-token/:token",
