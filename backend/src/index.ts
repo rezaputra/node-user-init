@@ -54,3 +54,5 @@ startServer();
 
 process.on("SIGINT", stopServer);
 process.on("SIGTERM", stopServer);
+
+export default app;

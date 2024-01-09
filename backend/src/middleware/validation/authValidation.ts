@@ -5,7 +5,7 @@ import { ClientError } from "../../config/errors/clientError";
 import { validate } from "./validate";
 
 // User signup
-const name = body("fullName").exists({ checkFalsy: true });
+const fullName = body("fullName", "Full name field cannot be empty").exists({ checkFalsy: true });
 
 const emailTaken: ValidationChain = body("email", "Email is not valid")
     .isEmail()
@@ -68,7 +68,7 @@ const resetToken: ValidationChain = param("token", "Reset token not found").exis
 
 //
 // Validate result
-const signup = [name, emailTaken, strongPassword, confPassword, validate];
+const signup = [fullName, emailTaken, strongPassword, confPassword, validate];
 const sendOtp = [isEmailVerified, validate];
 const verifyOtp = [isEmailVerified, otp, validate];
 const login = [email, password, validate];
